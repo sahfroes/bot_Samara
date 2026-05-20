@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 #aqui ele carrega as varias do arquivo .env para a memoria
 load_dotenv()
 
-CHAVE_API = os.getenv("TELEGRAM_TOKEN")
+CHAVE_API = os.getenv("CHAVE_API")
 bot = telebot.TeleBot(CHAVE_API)
 
 # Função para responder a mensagem de boas-vindas
