@@ -1,6 +1,22 @@
 import os
 import telebot
 from dotenv import load_dotenv
+from flash import Flash
+from threading import Thread
+
+app = Flash('')
+
+@app.route('/')
+def home():
+    return "O bot da Samara está online e funcionando!"
+
+def run():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 #aqui ele carrega as varias do arquivo .env para a memoria
 load_dotenv()
