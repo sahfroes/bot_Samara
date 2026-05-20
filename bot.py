@@ -57,4 +57,16 @@ def solicitar_suporte(mensagem):
     bot.reply_to(mensagem, texto)
 
 # Função que mantém o bot rodando e escutando as mensagens
-bot.polling()
+#bot.polling()
+
+# 3. Execução em paralelo (Servidor Web + Bot do Telegram)
+if __name__ == "__main__":
+    print("Iniciando servidor de sobrevivência Flask...")
+    keep_alive()  # Ativa o mini site que o Render exige
+    
+    print("Limpando conexões antigas e webhooks travados no Telegram...")
+    bot.delete_webhook(drop_pending_updates=True)  # Resolve o erro de conflito 409
+    
+    print("Bot da Samara escutando as mensagens!")
+    # non_stop=True faz com que o bot não caia sozinho por instabilidade de rede
+    bot.polling(non_stop=True)
