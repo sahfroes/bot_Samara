@@ -53,7 +53,7 @@ def enviar_site(mensagem):
 def solicitar_suporte(mensagem):
     texto = " Suporte Técnico TI:\n\n" \
             " E-mail: ti@cff.org.br\n" \
-            " Telefone: (61) 380700"
+            " Telefone: (61) 9380700"
     bot.reply_to(mensagem, texto)
 
 # Função que mantém o bot rodando e escutando as mensagens
