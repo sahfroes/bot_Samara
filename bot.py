@@ -1,10 +1,10 @@
 import os
 import telebot
 from dotenv import load_dotenv
-from flash import Flash
+from flask import Flask
 from threading import Thread
 
-app = Flash('')
+app = Flask('')
 
 @app.route('/')
 def home():
