@@ -46,7 +46,7 @@ def boas_vindas(mensagem):
 
 @bot.message_handler(commands=['ajuda'])
 def ajuda(mensagem):
-    bot.send_message(mensagem.chat.id, "Escolha uma opção:", reply_markup=criar_menu_botoes())
+    bot.send_message(mensagem.chat.id, "Escolha uma opção opção a baixo para navehar de forma rápida!:", reply_markup=criar_menu_botoes())
 
 # TRATAMENTO DOS CLIQUES DOS BOTÕES
 @bot.callback_query_handler(func=lambda call: True)
@@ -61,12 +61,24 @@ def responder_cliques(call):
     elif call.data == "btn_suporte":
         texto_suporte = "📞 Suporte Técnico TI:\n\n📧 E-mail: ti@cff.org.br\n📱 Telefone: (61) 9380-7000"
         bot.send_message(chat_id, texto_suporte)
+      
     elif call.data == "btn_ajuda":
-        texto_ajuda = "💡 Use os botões abaixo da tela para navegar de forma rápida!"
-        bot.send_message(chat_id, texto_ajuda)
+        
+        menu_ajuda = types.InlineKeyboardMarkup(row_width=1)
+        botao_legislacao = types.InlineKeyboardButton(" Legislação e Resuluções", url="https://site.cff.org.br/legislacao", callback_data="ajuda_legislacao")
+        bota_fale_conosco = types.InlineKeyboardButton(" Fale com CFF", url="https://site.cff.org.br/fale-com-cff", callback_data="ajuda_fale__com_cff")
+        botao_cedula_digital =types.InlineKeyboardButton(" Cédula Digital", url="https://site.cff.org.br/cedula", callback_data="ajuda_cedula_digital")
+        botao_sei = types.InlineKeyboardButton(" SEI", url="https://site.cff.org.br/sei", callback_data="ajuda_sei")
+        botao_publicacao = types.InlineKeyboardButton(" Manuais Práticos e Guias ", url="https://site.cff.org.br/publicacoes", callback_data="ajuda_publicacao")
 
+        menu_ajuda.add(botao_legislacao, bota_fale_conosco, botao_cedula_digital, botao_sei, botao_publicacao)
+
+        texto_ajuda = """ *Central de Ajuda ao farmacêutico*
+        Selecione uma das opções abaixo para acessar serviços:"""
+        bot.send_message(chat_id, texto_ajuda, reply_markup=menu_ajuda, parse_mode="Markdown")
 
 if __name__ == "__main__":
+    
     import time
     
     print("Iniciando servidor de sobrevivência Flask...")
