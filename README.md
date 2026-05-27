@@ -78,5 +78,5 @@ Para realizar a implantação, utilize as seguintes configurações no painel do
 
 ## 👤 Autora
 
-Desenvolvido com 💙 por **Sarah Fróes**.
+Desenvolvido por **Sarah Fróes**.
 ```

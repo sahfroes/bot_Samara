@@ -7,6 +7,8 @@ from telebot import types
 from dotenv import load_dotenv
 from flask import Flask
 
+from ia import gerar_resposta
+
 # 1. Configurações de Ambiente e Logs
 load_dotenv()
 
@@ -38,8 +40,9 @@ def menu_principal():
     markup = types.InlineKeyboardMarkup(row_width=1)
     btn_site = types.InlineKeyboardButton("🌐 Portal Oficial CFF", callback_data="btn_site")
     btn_ajuda = types.InlineKeyboardButton("🩺 Central do Farmacêutico", callback_data="btn_ajuda")
+    btn_ia = types.InlineKeyboardButton("💬 Tirar Dúvida (IA Samara)", callback_data="btn_ia")  # CORRIGIDO: Adicionado botão da IA
     btn_suporte = types.InlineKeyboardButton("🛠️ Suporte Técnico TI", callback_data="btn_suporte")
-    markup.add(btn_site, btn_ajuda, btn_suporte)
+    markup.add(btn_site, btn_ajuda, btn_ia, btn_suporte)
     return markup
 
 def menu_farmaceutico():
@@ -49,28 +52,41 @@ def menu_farmaceutico():
     btn_publicacao = types.InlineKeyboardButton("📚 Manuais Práticos e Guias", url="https://site.cff.org.br/publicacoes")
     btn_sei = types.InlineKeyboardButton("💻 Sistema SEI", url="https://site.cff.org.br/sei")
     btn_fale_conosco = types.InlineKeyboardButton("📞 Fale com o CFF (Contatos)", url="https://site.cff.org.br/fale-com-cff")
-    
-    # O grande diferencial: Botão para retornar ao menu anterior
     btn_voltar = types.InlineKeyboardButton("« Voltar ao Menu Principal", callback_data="btn_voltar")
-    
     markup.add(btn_legislacao, btn_cedula_digital, btn_publicacao, btn_sei, btn_fale_conosco, btn_voltar)
     return markup
 
 # ==========================================================
-# 3. Handlers de Comandos de Texto (AQUI ESTÁ A MUDANÇA!)
+# 3. Handlers de Comandos de Texto e Conexão IA
 # ==========================================================
 
-# Regra A: Atende comandos por cliques (/start, /ajuda, /comecar, /iniciar)
+def responder_com_gemini(mensagem):
+    chat_id = mensagem.chat.id
+    pergunta = mensagem.text
+
+    # Caso o usuário envie um comando por texto em vez de uma dúvida
+    if pergunta in ['/start', '/ajuda', '/comecar', '/iniciar', '/menu']:
+        exibir_menu_inicial(chat_id)
+        return
+
+    bot.send_chat_action(chat_id, 'typing')
+    resposta_ia = gerar_resposta(pergunta)
+
+    markup_voltar = types.InlineKeyboardMarkup().add(
+        types.InlineKeyboardButton("« Voltar ao Menu", callback_data="btn_voltar")
+    )
+    bot.send_message(chat_id, resposta_ia, reply_markup=markup_voltar, parse_mode="Markdown")
+
+# Regra A: Atende comandos por cliques (/start, /ajuda, etc)
 @bot.message_handler(commands=['iniciar', 'start', 'comecar', 'ajuda', 'menu'])
 def enviar_boas_vindas_comando(mensagem):
     exibir_menu_inicial(mensagem.chat.id)
 
-# Regra B: Se o usuário enviar QUALQUER outro texto ou errar a barra (ex: "oi", "\start"), o bot atende do mesmo jeito!
+# Regra B: Se o usuário enviar QUALQUER outro texto padrão, abre o menu
 @bot.message_handler(func=lambda msg: True)
 def enviar_boas_vindas_texto(mensagem):
     exibir_menu_inicial(mensagem.chat.id)
 
-# Função centralizada para enviar o menu e evitar repetição
 def exibir_menu_inicial(chat_id):
     texto = """👋 *Olá! Eu sou a Agente Samara.*
 
@@ -92,7 +108,6 @@ def responder_cliques(call):
 
 O site oficial do Conselho Federal de Farmácia está disponível no link abaixo:
 🔗 https://site.cff.org.br/"""
-        # edit_message_text substitui o texto antigo pelo novo na mesma bolha!
         bot.edit_message_text(texto_site, chat_id, message_id, reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("« Voltar", callback_data="btn_voltar")), parse_mode="Markdown")
         
     elif call.data == "btn_suporte":
@@ -111,14 +126,22 @@ Precisa de auxílio técnico? Entre em contato com a nossa equipe:
 Plataforma de acesso rápido aos serviços integrados. Clique no botão correspondente para ser direcionado de forma segura:"""
         bot.edit_message_text(texto_ajuda, chat_id, message_id, reply_markup=menu_farmaceutico(), parse_mode="Markdown")
 
+    elif call.data == "btn_ia":  # CORRIGIDO: Adicionado o gatilho para o botão da IA
+        texto_ia = """💬 *Modo Inteligente Ativado!*
+
+Eu sou a Samara. Pode me fazer qualquer pergunta sobre legislação farmacêutica, ética ou desafios da profissão.
+
+👉 *Digite sua dúvida abaixo:*"""
+        msg_enviada = bot.edit_message_text(texto_ia, chat_id, message_id, parse_mode="Markdown")
+        bot.register_next_step_handler(msg_enviada, responder_com_gemini)
+
     elif call.data == "btn_voltar":
-        # Restaura o menu principal perfeitamente
         texto_voltar = """👋 *Olá! Eu sou a Agente Samara.*
 
 Como posso te ajudar hoje? Selecione uma opção nos botões abaixo:"""
         bot.edit_message_text(texto_voltar, chat_id, message_id, reply_markup=menu_principal(), parse_mode="Markdown")
 
-# 5. Inicialização do Bot com Configuração de Comandos Virtuais
+# 5. Inicialização do Bot
 if __name__ == "__main__":
     print("Iniciando servidor de sobrevivência Flask...")
     keep_alive()
@@ -130,14 +153,13 @@ if __name__ == "__main__":
         pass
         
     print("Configurando botões de comando padrão no Telegram...")
-    # Cria o menu fixo azul do lado esquerdo da barra de digitação do usuário
     bot.set_my_commands([
         types.BotCommand("start", "Menu Principal / Iniciar"),
         types.BotCommand("ajuda", "Central do Farmacêutico")
     ])
     
     bot.delete_webhook(drop_pending_updates=True)
-    print("Bot da Samara online, lindo e escutando mensagens!")
+    print("Bot da Samara online, lindo e escutando mensagens com IA!")
     
     while True:
         try:
