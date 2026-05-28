@@ -7,6 +7,7 @@ from telebot import types
 from dotenv import load_dotenv
 from flask import Flask
 
+# Importa a função modificada 
 from ia import gerar_resposta
 
 # 1. Configurações de Ambiente e Logs
@@ -40,7 +41,7 @@ def menu_principal():
     markup = types.InlineKeyboardMarkup(row_width=1)
     btn_site = types.InlineKeyboardButton("🌐 Portal Oficial CFF", callback_data="btn_site")
     btn_ajuda = types.InlineKeyboardButton("🩺 Central do Farmacêutico", callback_data="btn_ajuda")
-    btn_ia = types.InlineKeyboardButton("💬 Tirar Dúvida (IA Samara)", callback_data="btn_ia")  # CORRIGIDO: Adicionado botão da IA
+    btn_ia = types.InlineKeyboardButton("💬 Tirar Dúvida (IA Samara)", callback_data="btn_ia")
     btn_suporte = types.InlineKeyboardButton("🛠️ Suporte Técnico TI", callback_data="btn_suporte")
     markup.add(btn_site, btn_ajuda, btn_ia, btn_suporte)
     return markup
@@ -60,7 +61,8 @@ def menu_farmaceutico():
 # 3. Handlers de Comandos de Texto e Conexão IA
 # ==========================================================
 
-def responder_com_gemini(mensagem):
+# Alterado o nome apenas para organização 
+def processar_duvida_ia(mensagem):
     chat_id = mensagem.chat.id
     pergunta = mensagem.text
 
@@ -70,6 +72,8 @@ def responder_com_gemini(mensagem):
         return
 
     bot.send_chat_action(chat_id, 'typing')
+    
+    # Chama a IA 
     resposta_ia = gerar_resposta(pergunta)
 
     markup_voltar = types.InlineKeyboardMarkup().add(
@@ -126,14 +130,16 @@ Precisa de auxílio técnico? Entre em contato com a nossa equipe:
 Plataforma de acesso rápido aos serviços integrados. Clique no botão correspondente para ser direcionado de forma segura:"""
         bot.edit_message_text(texto_ajuda, chat_id, message_id, reply_markup=menu_farmaceutico(), parse_mode="Markdown")
 
-    elif call.data == "btn_ia":  # CORRIGIDO: Adicionado o gatilho para o botão da IA
+    elif call.data == "btn_ia":
         texto_ia = """💬 *Modo Inteligente Ativado!*
 
 Eu sou a Samara. Pode me fazer qualquer pergunta sobre legislação farmacêutica, ética ou desafios da profissão.
 
 👉 *Digite sua dúvida abaixo:*"""
         msg_enviada = bot.edit_message_text(texto_ia, chat_id, message_id, parse_mode="Markdown")
-        bot.register_next_step_handler(msg_enviada, responder_com_gemini)
+        
+        # Vincula o próximo passo à  função atualizada
+        bot.register_next_step_handler(msg_enviada, processar_duvida_ia)
 
     elif call.data == "btn_voltar":
         texto_voltar = """👋 *Olá! Eu sou a Agente Samara.*

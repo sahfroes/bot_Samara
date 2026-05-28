@@ -1,26 +1,26 @@
 import os
-from google import genai
+from groq import Groq
 from dotenv import load_dotenv
 
 # Força o carregamento do .env imediatamente dentro deste arquivo
 load_dotenv()
 
-chave_gemini = os.getenv("GEMINI_API_KEY")
+chave_groq = os.getenv("GROQ_API_KEY")
 
 # Se você escreveu outro nome no .env (como GEMINI_KEY ou CHAVE_GEMINI), essa linha tenta salvar:
-if not chave_gemini:
-    chave_gemini = os.getenv("CHAVE_API_KEY") or os.getenv("GEMINI_KEY")
+if not chave_groq:
+    chave_groq = os.getenv("CHAVE_API_KEY") or os.getenv("GROQ_KEY")
 
 # Validação clara para não estourar o erro interno do Google
-if not chave_gemini:
-    raise ValueError("🚨 ERRO CRÍTICO: A variável GEMINI_API_KEY não foi encontrada no seu arquivo .env!")
+if not chave_groq:
+    raise ValueError("🚨 ERRO CRÍTICO: A variável GROQ_API_KEY não foi encontrada no seu arquivo .env!")
 
-# Inicializa o cliente do Gemini com a chave garantida
-ai_client = genai.Client(api_key=chave_gemini)
+# Inicializa o cliente do Groq com a chave garantida
+ai_client = Groq(api_key=chave_groq)
 
 def gerar_resposta(pergunta):
     """
-    Envia a pergunta do farmacêutico para o Gemini e retorna o texto da resposta.
+    Envia a pergunta do farmacêutico para o Groq e retorna o texto da resposta.
     """
     instrucao = """Você é a Agente Samara, assistente virtual oficial do CFF. 
     Seja sempre extremamente educada, prestativa e adote um tom profissional (chame os usuários de Doutor ou Doutora). 
