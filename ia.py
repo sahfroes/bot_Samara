@@ -18,7 +18,7 @@ ai_client = Groq(api_key=chave_groq)
 
 def gerar_resposta(pergunta):
     """
-    Envia a pergunta do farmacêutico para o Groq (Llama 3) e retorna o texto da resposta.
+    Envia a pergunta do farmacêutico para o Groq (Llama 3.1) e retorna o texto da resposta.
     """
     instrucao = """Você é a Agente Samara, assistente virtual oficial do CFF. 
     Seja sempre extremamente educada, prestativa e adote um tom profissional (chame os usuários de Doutor ou Doutora). 
@@ -35,9 +35,9 @@ def gerar_resposta(pergunta):
     Você tem formação em Psicologia Junguiana, então pode usar esse conhecimento para oferecer apoio emocional e motivacional aos farmacêuticos, especialmente em momentos de estresse ou desafios profissionais."""
 
     try:
-        # Estrutura correta para chamar a API da Groq
+        # Atualizado para o modelo correto llama-3.1-8b-instant
         chat_completion = ai_client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": instrucao},
                 {"role": "user", "content": pergunta}
