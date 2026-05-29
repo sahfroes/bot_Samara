@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Tenta pegar a chave padrão do Groq ou a sua chave genérica
+# Tenta pegar a chave padrão 
 chave_groq = os.getenv("GROQ_API_KEY") or os.getenv("CHAVE_API_KEY")
 
 if not chave_groq:

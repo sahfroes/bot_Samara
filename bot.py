@@ -190,7 +190,7 @@ def responder_cliques(call):
 # 5. Inicialização do Bot
 if __name__ == "__main__":
     print("Inicializando e verificando banco de dados...")
-    inicializar_banco()  # (CORRIGIDO: adicionado a chamada aqui)
+    inicializar_banco()  #
 
     print("Iniciando servidor de sobrevivência Flask...")
     keep_alive()
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     ])
     
     bot.delete_webhook(drop_pending_updates=True)
-    print("Bot da Samara online, lindo e escutando mensagens com IA!")
+    print("Bot da Samara online e escutando mensagens com IA!")
     
     while True:
         try:
