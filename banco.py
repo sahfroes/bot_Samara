@@ -21,7 +21,8 @@ def inicializar_banco():
         ("12345678900", "Amanda Souza", "F"),
         ("98765432100", "Carlos Silva", "M"),
         ("11122233344", "Fernanda Ribeiro", "F"),
-        ("04531200160", "Sarah", "F")
+        ("55566677788", "João Pereira", "M"),
+        ("99988877766", "Mariana Costa", "F")
     ]
     
     cursor.executemany("""
