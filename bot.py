@@ -7,17 +7,21 @@ from telebot import types
 from dotenv import load_dotenv
 from flask import Flask
 
-# Importa a função modificada 
+# Importações dos outros arquivos
 from ia import gerar_resposta
+from banco import inicializar_banco, consultar_cadastro
 
 # 1. Configurações de Ambiente e Logs
 load_dotenv()
 
-CHAVE_API = os.getenv("CHAVE_API")
+CHAVE_API = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("CHAVE_API")
 if not CHAVE_API:
-    raise ValueError("ERRO: CHAVE_API não encontrada!")
+    raise ValueError("ERRO: TELEGRAM_BOT_TOKEN ou CHAVE_API não encontrada!")
 
 bot = telebot.TeleBot(CHAVE_API)
+
+# Dicionário na memória para guardar as sessões ativas (CORRIGIDO: adicionado aqui)
+usuarios_logados = {}
 
 # Desativa os logs repetitivos do Flask para limpar o terminal
 hl = logging.getLogger('werkzeug')
@@ -35,6 +39,14 @@ def run_server():
 def keep_alive():
     t = Thread(target=run_server, daemon=True)
     t.start()
+
+# Função Auxiliar para evitar erros de cliques repetidos
+def editar_mensagem_segura(texto, chat_id, message_id, reply_markup=None):
+    try:
+        bot.edit_message_text(texto, chat_id, message_id, reply_markup=reply_markup, parse_mode="Markdown")
+    except telebot.apihelper.ApiTelegramException as e:
+        if "message is not modified" not in e.description:
+            raise e
 
 # 2. Gerenciadores de Menus (Interface Visual)
 def menu_principal():
@@ -61,46 +73,90 @@ def menu_farmaceutico():
 # 3. Handlers de Comandos de Texto e Conexão IA
 # ==========================================================
 
-# Alterado o nome apenas para organização 
 def processar_duvida_ia(mensagem):
     chat_id = mensagem.chat.id
     pergunta = mensagem.text
 
-    # Caso o usuário envie um comando por texto em vez de uma dúvida
-    if pergunta in ['/start', '/ajuda', '/comecar', '/iniciar', '/menu']:
+    if pergunta in ['/start', '/ajuda', '/comecar', '/iniciar', '/menu', 'sair', 'Sair']:
+        bot.clear_step_handler_by_chat_id(chat_id=chat_id)
         exibir_menu_inicial(chat_id)
         return
 
     bot.send_chat_action(chat_id, 'typing')
-    
-    # Chama a IA 
     resposta_ia = gerar_resposta(pergunta)
 
     markup_voltar = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("« Voltar ao Menu", callback_data="btn_voltar")
+        types.InlineKeyboardButton("« Sair da IA (Menu Principal)", callback_data="btn_voltar")
     )
     bot.send_message(chat_id, resposta_ia, reply_markup=markup_voltar, parse_mode="Markdown")
+    
+    ajuda_texto = "✍️ *Pode fazer outra pergunta se desejar (ou envie /menu para sair):*"
+    proxima_msg = bot.send_message(chat_id, ajuda_texto, parse_mode="Markdown")
+    bot.register_next_step_handler(proxima_msg, processar_duvida_ia)
 
-# Regra A: Atende comandos por cliques (/start, /ajuda, etc)
+# Fluxo de Autenticação inicial
+def iniciar_autenticacao(mensagem):
+    chat_id = mensagem.chat.id
+    bot.clear_step_handler_by_chat_id(chat_id=chat_id)
+    
+    if chat_id in usuarios_logados:
+        exibir_menu_inicial(chat_id)
+        return
+
+    texto_cpf = """👋 *Olá! Eu sou a Agente Samara, assistente virtual oficial do CFF.*
+
+Para iniciar o seu atendimento personalizado, por favor, **digite o seu CPF** (apenas números):"""
+    msg = bot.send_message(chat_id, texto_cpf, parse_mode="Markdown")
+    bot.register_next_step_handler(msg, processar_cpf)
+
+def processar_cpf(mensagem):
+    chat_id = mensagem.chat.id
+    cpf_digitado = mensagem.text
+
+    if cpf_digitado.startswith('/'):
+        bot.clear_step_handler_by_chat_id(chat_id=chat_id)
+        enviar_boas_vindas_comando(mensagem)
+        return
+
+    bot.send_chat_action(chat_id, 'typing')
+    dados_farmaceutico = consultar_cadastro(cpf_digitado)
+    
+    if dados_farmaceutico:
+        tratamento = "Doutora" if dados_farmaceutico["genero"] == "F" else "Doutor"
+        primeiro_nome = dados_farmaceutico["nome"].split()[0]
+        
+        usuarios_logados[chat_id] = {
+            "nome": primeiro_nome,
+            "tratamento": tratamento
+        }
+        
+        bot.send_message(chat_id, f"🎉 Cadastro localizado!\nSeja bem-vindo(a), *{tratamento} {primeiro_nome}*.", parse_mode="Markdown")
+        exibir_menu_inicial(chat_id)
+    else:
+        usuarios_logados[chat_id] = {"nome": "Colega", "tratamento": "Doutor(a)"}
+        bot.send_message(chat_id, "⚠️ CPF não localizado no sistema. Acesso liberado como visitante.")
+        exibir_menu_inicial(chat_id)
+
+# Regra A: Quando o usuário clica ou digita comandos de menu
 @bot.message_handler(commands=['iniciar', 'start', 'comecar', 'ajuda', 'menu'])
 def enviar_boas_vindas_comando(mensagem):
-    exibir_menu_inicial(mensagem.chat.id)
+    iniciar_autenticacao(mensagem)
 
-# Regra B: Se o usuário enviar QUALQUER outro texto padrão, abre o menu
+# Regra B: Só intercepta se o usuário mandar textos aleatórios sem cadastro
 @bot.message_handler(func=lambda msg: True)
 def enviar_boas_vindas_texto(mensagem):
-    exibir_menu_inicial(mensagem.chat.id)
+    iniciar_autenticacao(mensagem)
 
 def exibir_menu_inicial(chat_id):
-    texto = """👋 *Olá! Eu sou a Agente Samara.*
+    dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
+    texto = f"""👋 *Olá, {dados['tratamento']} {dados['nome']}!*
 
-Estou aqui para facilitar o seu acesso aos serviços do *CFF*. Como posso te ajudar hoje?
+Como posso te ajudar hoje nos serviços do *CFF*?
 
 📌 *Selecione uma opção nos botões abaixo:*"""
     bot.send_message(chat_id, texto, reply_markup=menu_principal(), parse_mode="Markdown")
 
-
-# 4. Tratamento Inteligente dos Cliques (Edição de Mensagem)
+# 4. Tratamento dos Cliques
 @bot.callback_query_handler(func=lambda call: True)
 def responder_cliques(call):
     bot.answer_callback_query(call.id)
@@ -108,47 +164,34 @@ def responder_cliques(call):
     message_id = call.message.message_id
     
     if call.data == "btn_site":
-        texto_site = """🌐 *Portal do CFF*
-
-O site oficial do Conselho Federal de Farmácia está disponível no link abaixo:
-🔗 https://site.cff.org.br/"""
-        bot.edit_message_text(texto_site, chat_id, message_id, reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("« Voltar", callback_data="btn_voltar")), parse_mode="Markdown")
+        texto_site = """🌐 *Portal do CFF*\n\nO site oficial do Conselho Federal de Farmácia está disponível no link abaixo:\n🔗 https://site.cff.org.br/"""
+        editar_mensagem_segura(texto_site, chat_id, message_id, reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("« Voltar", callback_data="btn_voltar")))
         
     elif call.data == "btn_suporte":
-        texto_suporte = """🛠️ *Suporte Técnico TI — CFF*
-
-Precisa de auxílio técnico? Entre em contato com a nossa equipe:
-
-📧 *E-mail:* ti@cff.org.br
-📱 *Telefone:* (61) 9380-7000
-🕒 *Atendimento:* Segunda a Sexta-feira, das 8h às 18h"""
-        bot.edit_message_text(texto_suporte, chat_id, message_id, reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("« Voltar", callback_data="btn_voltar")), parse_mode="Markdown")
+        texto_suporte = """🛠️ *Suporte Técnico TI — CFF*\n\nPrecisa de auxílio técnico? Entre em contato:\n\n📧 *E-mail:* ti@cff.org.br\n📱 *Telefone:* (61) 9380-7000\n🕒 *Atendimento:* Segunda a Sexta, das 8h às 18h"""
+        editar_mensagem_segura(texto_suporte, chat_id, message_id, reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("« Voltar", callback_data="btn_voltar")))
       
     elif call.data == "btn_ajuda":
-        texto_ajuda = """⚡ *Central de Ajuda ao Farmacêutico*
-
-Plataforma de acesso rápido aos serviços integrados. Clique no botão correspondente para ser direcionado de forma segura:"""
-        bot.edit_message_text(texto_ajuda, chat_id, message_id, reply_markup=menu_farmaceutico(), parse_mode="Markdown")
+        texto_ajuda = """⚡ *Central de Ajuda ao Farmacêutico*\n\nPlataforma de acesso rápido aos serviços integrados:"""
+        editar_mensagem_segura(texto_ajuda, chat_id, message_id, reply_markup=menu_farmaceutico())
 
     elif call.data == "btn_ia":
-        texto_ia = """💬 *Modo Inteligente Ativado!*
-
-Eu sou a Samara. Pode me fazer qualquer pergunta sobre legislação farmacêutica, ética ou desafios da profissão.
-
-👉 *Digite sua dúvida abaixo:*"""
+        texto_ia = """💬 *Modo Inteligente Ativado!*\n\nEu sou a Samara. Pode me fazer qualquer pergunta sobre legislação farmacêutica, ética ou desafios da profissão.\n\n👉 *Digite sua dúvida abaixo:*"""
+        bot.clear_step_handler_by_chat_id(chat_id=chat_id)
         msg_enviada = bot.edit_message_text(texto_ia, chat_id, message_id, parse_mode="Markdown")
-        
-        # Vincula o próximo passo à  função atualizada
         bot.register_next_step_handler(msg_enviada, processar_duvida_ia)
 
     elif call.data == "btn_voltar":
-        texto_voltar = """👋 *Olá! Eu sou a Agente Samara.*
-
-Como posso te ajudar hoje? Selecione uma opção nos botões abaixo:"""
-        bot.edit_message_text(texto_voltar, chat_id, message_id, reply_markup=menu_principal(), parse_mode="Markdown")
+        bot.clear_step_handler_by_chat_id(chat_id=chat_id)
+        dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
+        texto_voltar = f"👋 *Olá, {dados['tratamento']} {dados['nome']}!*\n\nComo posso te ajudar hoje? Selecione uma opção abaixo:"
+        editar_mensagem_segura(texto_voltar, chat_id, message_id, reply_markup=menu_principal())
 
 # 5. Inicialização do Bot
 if __name__ == "__main__":
+    print("Inicializando e verificando banco de dados...")
+    inicializar_banco()  # (CORRIGIDO: adicionado a chamada aqui)
+
     print("Iniciando servidor de sobrevivência Flask...")
     keep_alive()
     
