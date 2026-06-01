@@ -18,9 +18,10 @@ CHAVE_API = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("CHAVE_API")
 if not CHAVE_API:
     raise ValueError("ERRO: TELEGRAM_BOT_TOKEN ou CHAVE_API não encontrada!")
 
+# Criando a instância do BOT primeiro
 bot = telebot.TeleBot(CHAVE_API)
 
-# Dicionário na memória para guardar as sessões ativas (CORRIGIDO: adicionado aqui)
+# Dicionário na memória para guardar as sessões ativas
 usuarios_logados = {}
 
 # Desativa os logs repetitivos do Flask para limpar o terminal
@@ -125,6 +126,7 @@ def processar_cpf(mensagem):
         tratamento = "Doutora" if dados_farmaceutico["genero"] == "F" else "Doutor"
         primeiro_nome = dados_farmaceutico["nome"].split()[0]
         
+        # CORRIGIDO: Atribuição limpa de dicionário
         usuarios_logados[chat_id] = {
             "nome": primeiro_nome,
             "tratamento": tratamento
@@ -133,7 +135,11 @@ def processar_cpf(mensagem):
         bot.send_message(chat_id, f"🎉 Cadastro localizado!\nSeja bem-vindo(a), *{tratamento} {primeiro_nome}*.", parse_mode="Markdown")
         exibir_menu_inicial(chat_id)
     else:
-        usuarios_logados[chat_id] = {"nome": "Colega", "tratamento": "Doutor(a)"}
+        # CORRIGIDO: Estrutura correta para visitantes sem chaves quebradas
+        usuarios_logados[chat_id] = {
+            "nome": "Colega", 
+            "tratamento": "Doutor(a)"
+        }
         bot.send_message(chat_id, "⚠️ CPF não localizado no sistema. Acesso liberado como visitante.")
         exibir_menu_inicial(chat_id)
 
@@ -190,13 +196,14 @@ def responder_cliques(call):
 # 5. Inicialização do Bot
 if __name__ == "__main__":
     print("Inicializando e verificando banco de dados...")
-    inicializar_banco()  #
+    inicializar_banco()
 
     print("Iniciando servidor de sobrevivência Flask...")
     keep_alive()
     
-    print("Forçando encerramento de conexões antigas...")
+    print("Forçando encerramento de conexões antigas e removendo webhooks...")
     try:
+        bot.remove_webhook()
         bot.close()
     except Exception:
         pass
@@ -208,11 +215,12 @@ if __name__ == "__main__":
     ])
     
     bot.delete_webhook(drop_pending_updates=True)
+    print("Iniciando escuta estável do Telegram...")
     print("Bot da Samara online e escutando mensagens com IA!")
     
     while True:
         try:
-            bot.polling(non_stop=True, interval=0, timeout=20)
+            bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=10)
         except Exception as e:
-            print(f"Erro detectado: {e}")
+            print(f"Erro detectado no Polling: {e}")
             time.sleep(5)
