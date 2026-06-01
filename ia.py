@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Tenta pegar a chave padrão 
+# Tenta pegar a chave padrão
 chave_groq = os.getenv("GROQ_API_KEY") or os.getenv("CHAVE_API_KEY")
 
 if not chave_groq:
@@ -38,4 +38,4 @@ def gerar_resposta(pergunta):
         return chat_completion.choices[0].message.content
     except Exception as e:
         print(f"Erro ao chamar a Groq: {e}")
-        return "Desculpe, tive um problema técnico ao processar a sua dúvida. Por favor, tente novamente mais tarde."
+        return "⚠️ *Desculpe, Doutor(a).* Tive um problema técnico ao processar a sua dúvida com a inteligência artificial agora. Por favor, tente enviar sua pergunta novamente."

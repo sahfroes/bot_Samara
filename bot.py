@@ -1,13 +1,14 @@
 import os
 import logging
 import time
+import re
 from threading import Thread
 import telebot
 from telebot import types
 from dotenv import load_dotenv
 from flask import Flask
 
-# Importações dos outros arquivos
+# Importações dos outros arquivos locais
 from ia import gerar_resposta
 from banco import inicializar_banco, consultar_cadastro
 
@@ -18,7 +19,7 @@ CHAVE_API = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("CHAVE_API")
 if not CHAVE_API:
     raise ValueError("ERRO: TELEGRAM_BOT_TOKEN ou CHAVE_API não encontrada!")
 
-# Criando a instância do BOT primeiro
+# Criando a instância do BOT
 bot = telebot.TeleBot(CHAVE_API)
 
 # Dicionário na memória para guardar as sessões ativas
@@ -78,7 +79,10 @@ def processar_duvida_ia(mensagem):
     chat_id = mensagem.chat.id
     pergunta = mensagem.text
 
-    if pergunta in ['/start', '/ajuda', '/comecar', '/iniciar', '/menu', 'sair', 'Sair']:
+    if not pergunta:
+        return
+
+    if pergunta.strip() in ['/start', '/ajuda', '/comecar', '/iniciar', '/menu', 'sair', 'Sair']:
         bot.clear_step_handler_by_chat_id(chat_id=chat_id)
         exibir_menu_inicial(chat_id)
         return
@@ -112,11 +116,19 @@ Para iniciar o seu atendimento personalizado, por favor, **digite o seu CPF** (a
 
 def processar_cpf(mensagem):
     chat_id = mensagem.chat.id
-    cpf_digitado = mensagem.text
+    texto_usuario = mensagem.text or ""
 
-    if cpf_digitado.startswith('/'):
+    if texto_usuario.startswith('/'):
         bot.clear_step_handler_by_chat_id(chat_id=chat_id)
         enviar_boas_vindas_comando(mensagem)
+        return
+
+    # Remove qualquer caractere que não seja número
+    cpf_digitado = re.sub(r'\D', '', texto_usuario)
+
+    if len(cpf_digitado) != 11:
+        msg = bot.send_message(chat_id, "⚠️ *CPF inválido.* Por favor, digite um CPF válido contendo exatamente 11 dígitos (apenas números):", parse_mode="Markdown")
+        bot.register_next_step_handler(msg, processar_cpf)
         return
 
     bot.send_chat_action(chat_id, 'typing')
@@ -126,7 +138,6 @@ def processar_cpf(mensagem):
         tratamento = "Doutora" if dados_farmaceutico["genero"] == "F" else "Doutor"
         primeiro_nome = dados_farmaceutico["nome"].split()[0]
         
-        # CORRIGIDO: Atribuição limpa de dicionário
         usuarios_logados[chat_id] = {
             "nome": primeiro_nome,
             "tratamento": tratamento
@@ -135,7 +146,6 @@ def processar_cpf(mensagem):
         bot.send_message(chat_id, f"🎉 Cadastro localizado!\nSeja bem-vindo(a), *{tratamento} {primeiro_nome}*.", parse_mode="Markdown")
         exibir_menu_inicial(chat_id)
     else:
-        # CORRIGIDO: Estrutura correta para visitantes sem chaves quebradas
         usuarios_logados[chat_id] = {
             "nome": "Colega", 
             "tratamento": "Doutor(a)"
@@ -148,7 +158,7 @@ def processar_cpf(mensagem):
 def enviar_boas_vindas_comando(mensagem):
     iniciar_autenticacao(mensagem)
 
-# Regra B: Só intercepta se o usuário mandar textos aleatórios sem cadastro
+# Regra B: Intercepta se o usuário mandar textos aleatórios sem cadastro
 @bot.message_handler(func=lambda msg: True)
 def enviar_boas_vindas_texto(mensagem):
     iniciar_autenticacao(mensagem)
@@ -169,6 +179,9 @@ def responder_cliques(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
     
+    # IMPORTANTE: Limpa steps de texto ativos para evitar comportamento fantasma se usar botões inline
+    bot.clear_step_handler_by_chat_id(chat_id=chat_id)
+    
     if call.data == "btn_site":
         texto_site = """🌐 *Portal do CFF*\n\nO site oficial do Conselho Federal de Farmácia está disponível no link abaixo:\n🔗 https://site.cff.org.br/"""
         editar_mensagem_segura(texto_site, chat_id, message_id, reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("« Voltar", callback_data="btn_voltar")))
@@ -183,12 +196,10 @@ def responder_cliques(call):
 
     elif call.data == "btn_ia":
         texto_ia = """💬 *Modo Inteligente Ativado!*\n\nEu sou a Samara. Pode me fazer qualquer pergunta sobre legislação farmacêutica, ética ou desafios da profissão.\n\n👉 *Digite sua dúvida abaixo:*"""
-        bot.clear_step_handler_by_chat_id(chat_id=chat_id)
         msg_enviada = bot.edit_message_text(texto_ia, chat_id, message_id, parse_mode="Markdown")
         bot.register_next_step_handler(msg_enviada, processar_duvida_ia)
 
     elif call.data == "btn_voltar":
-        bot.clear_step_handler_by_chat_id(chat_id=chat_id)
         dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
         texto_voltar = f"👋 *Olá, {dados['tratamento']} {dados['nome']}!*\n\nComo posso te ajudar hoje? Selecione uma opção abaixo:"
         editar_mensagem_segura(texto_voltar, chat_id, message_id, reply_markup=menu_principal())
@@ -201,7 +212,7 @@ if __name__ == "__main__":
     print("Iniciando servidor de sobrevivência Flask...")
     keep_alive()
     
-    print("Forçando encerramento de conexões antigas e removendo webhooks...")
+    print("Forçando encerramento de conexões antigas...")
     try:
         bot.remove_webhook()
         bot.close()
@@ -215,12 +226,7 @@ if __name__ == "__main__":
     ])
     
     bot.delete_webhook(drop_pending_updates=True)
-    print("Iniciando escuta estável do Telegram...")
     print("Bot da Samara online e escutando mensagens com IA!")
     
-    while True:
-        try:
-            bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=10)
-        except Exception as e:
-            print(f"Erro detectado no Polling: {e}")
-            time.sleep(5)
+    # O infinity_polling nativo já cuida de erros e reconexões automaticamente
+    bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=20)
