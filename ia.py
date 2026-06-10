@@ -12,7 +12,7 @@ if not chave_groq:
 
 ai_cliente = Groq(api_key=chave_groq)
 
-def gerar_resposta(pergunta):
+def gerar_resposta(historico_mensagens, pergunta):
     """
     Envia a pergunta do farmacêutico para o Groq (Llama 3.1) e retorna o texto da resposta.
     """
@@ -27,12 +27,15 @@ def gerar_resposta(pergunta):
         "'*Nota: Esta resposta possui caráter puramente informativo.*'"
     )
 
+    mensagens_api = [{"role": "system", "content": instrucao}] + historico_mensagens
+
     try:
         chat_completion = ai_cliente.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": instrucao},
-                {"role": "user", "content": pergunta}
+                {"role": "user", "content": pergunta},
+                { "messages": mensagens_api }  
             ]
         )
         return chat_completion.choices[0].message.content

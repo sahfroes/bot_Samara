@@ -11,6 +11,7 @@ from flask import Flask
 # Importações dos outros arquivos locais
 from ia import gerar_resposta
 from banco import inicializar_banco, consultar_cadastro
+from banco import inicializar_banco, consultar_cadastro, armazenar_conversa, buscar_historico, limpar_historico
 
 # 1. Configurações de Ambiente e Logs
 load_dotenv()
@@ -82,20 +83,33 @@ def processar_duvida_ia(mensagem):
     if not pergunta:
         return
 
+    # Se decidir sair da IA por texto ou comando, limpa o histórico do banco de dados
     if pergunta.strip() in ['/start', '/ajuda', '/comecar', '/iniciar', '/menu', 'sair', 'Sair']:
+        limpar_historico(chat_id)
         bot.clear_step_handler_by_chat_id(chat_id=chat_id)
         exibir_menu_inicial(chat_id)
         return
 
+    # 1. Salva a pergunta que o usuário acabou de fazer no banco de dados
+    armazenar_conversa(chat_id, role="user", content=pergunta)
+
+    # 2. Busca o histórico recente (as últimas 6 interações) para dar contexto à Samara
+    historico = buscar_historico(chat_id, limite=6)
+
     bot.send_chat_action(chat_id, 'typing')
-    resposta_ia = gerar_resposta(pergunta)
+    
+    # 3. Envia o histórico estruturado para o arquivo ia.py obter a resposta do Llama
+    resposta_ia = gerar_resposta(historico, pergunta)
+
+    # 4. Salva a resposta que a IA gerou no banco de dados também, para ela se lembrar na próxima rodada
+    armazenar_conversa(chat_id, role="assistant", content=resposta_ia)
 
     markup_voltar = types.InlineKeyboardMarkup().add(
         types.InlineKeyboardButton("« Sair da IA (Menu Principal)", callback_data="btn_voltar")
     )
     bot.send_message(chat_id, resposta_ia, reply_markup=markup_voltar, parse_mode="Markdown")
     
-    ajuda_texto = "✍️ *Pode fazer outra pergunta se desejar (ou envie /menu para sair):*"
+    ajuda_texto = "✍️ *Pode continuar a conversa ou fazer outra pergunta (envie /menu para sair):*"
     proxima_msg = bot.send_message(chat_id, ajuda_texto, parse_mode="Markdown")
     bot.register_next_step_handler(proxima_msg, processar_duvida_ia)
 
@@ -195,11 +209,18 @@ def responder_cliques(call):
         editar_mensagem_segura(texto_ajuda, chat_id, message_id, reply_markup=menu_farmaceutico())
 
     elif call.data == "btn_ia":
-        texto_ia = """💬 *Modo Inteligente Ativado!*\n\nEu sou a Samara. Pode me fazer qualquer pergunta sobre legislação farmacêutica, ética ou desafios da profissão.\n\n👉 *Digite sua dúvida abaixo:*"""
+        limpar_historico(chat_id) # Garante que a conversa começará do zero, sem lixo antigo
+        texto_ia = """💬 *Modo Inteligente Ativado!*\n\nEu sou a Samara. Agora eu consigo me lembrar do contexto da nossa conversa! Pode falar comigo naturalmente.\n\n👉 *Digite sua dúvida abaixo:*"""
         msg_enviada = bot.edit_message_text(texto_ia, chat_id, message_id, parse_mode="Markdown")
         bot.register_next_step_handler(msg_enviada, processar_duvida_ia)
 
     elif call.data == "btn_voltar":
+        dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
+        texto_voltar = f"👋 *Olá, {dados['tratamento']} {dados['nome']}!*\n\nComo posso te ajudar hoje? Selecione uma opção abaixo:"
+        editar_mensagem_segura(texto_voltar, chat_id, message_id, reply_markup=menu_principal())     
+
+    elif call.data == "btn_voltar":
+        limpar_historico(chat_id) # Limpa os dados de histórico para economizar espaço se ele saiu do menu
         dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
         texto_voltar = f"👋 *Olá, {dados['tratamento']} {dados['nome']}!*\n\nComo posso te ajudar hoje? Selecione uma opção abaixo:"
         editar_mensagem_segura(texto_voltar, chat_id, message_id, reply_markup=menu_principal())
