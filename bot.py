@@ -170,11 +170,17 @@ def processar_cpf(mensagem):
 # Regra A: Quando o usuário clica ou digita comandos de menu
 @bot.message_handler(commands=['iniciar', 'start', 'comecar', 'ajuda', 'menu'])
 def enviar_boas_vindas_comando(mensagem):
+    chat_id = mensagem.chat.id
+    limpar_historico(chat_id) 
     iniciar_autenticacao(mensagem)
 
 # Regra B: Intercepta se o usuário mandar textos aleatórios sem cadastro
 @bot.message_handler(func=lambda msg: True)
 def enviar_boas_vindas_texto(mensagem):
+    chat_id = mensagem.chat.id
+    if bot.get_state(chat_id) is not None or chat_id in bot.next_step_handlers:
+        return
+        
     iniciar_autenticacao(mensagem)
 
 def exibir_menu_inicial(chat_id):
