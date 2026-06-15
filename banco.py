@@ -68,7 +68,7 @@ def salvar_mensagem_historico(chat_id, role, content):
         """, (chat_id, role, content))
         conn.commit()
 
-def buscar_historico_recente(chat_id, limite=20):
+def buscar_historico(chat_id, limite=20):
     """Busca as últimas mensagens do chat para servir de contexto (padrão: últimas 20)."""
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
