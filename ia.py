@@ -27,16 +27,13 @@ def gerar_resposta(historico_mensagens, pergunta):
         "'*Nota: Esta resposta possui caráter puramente informativo.*'"
     )
 
-    mensagens_api = [{"role": "system", "content": instrucao}] + historico_mensagens
+    mensagens_api = [{"role": "system", "content": instrucao}] + historico_mensagens + [{"role": "user", "content": pergunta}]
 
     try:
         chat_completion = ai_cliente.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": instrucao},
-                {"role": "user", "content": pergunta},
-                { "messages": mensagens_api }  
-            ]
+            messages=mensagens_api
+            
         )
         return chat_completion.choices[0].message.content
     except Exception as e:
