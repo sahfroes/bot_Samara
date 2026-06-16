@@ -10,8 +10,7 @@ from flask import Flask
 
 # Importações dos outros arquivos locais
 from ia import gerar_resposta
-from banco import inicializar_banco, consultar_cadastro
-from banco import inicializar_banco, consultar_cadastro, armazenar_conversa, buscar_historico, limpar_historico
+from banco import inicializar_banco, consultar_cadastro, salvar_mensagem_historico, armazenar_conversa, buscar_historico, limpar_historico
 
 # 1. Configurações de Ambiente e Logs
 load_dotenv()
@@ -77,7 +76,7 @@ def menu_farmaceutico():
 # ==========================================================
 
 def processar_duvida_ia(mensagem):
-    chat_id = mensagem.chat.id
+    chat_id = message_id = mensagem.chat.id
     pergunta = mensagem.text
 
     if not pergunta:
@@ -90,25 +89,31 @@ def processar_duvida_ia(mensagem):
         exibir_menu_inicial(chat_id)
         return
 
-    # 1. Salva a pergunta que o usuário acabou de fazer no banco de dados
-    armazenar_conversa(chat_id, role="user", content=pergunta)
+    try:
+        # 1. Salva a pergunta usando a função correta para mensagens individuais
+        salvar_mensagem_historico(chat_id, role="user", content=pergunta)
 
-    # 2. Busca o histórico recente (as últimas 6 interações) para dar contexto à Samara
-    historico = buscar_historico(chat_id, limite=6)
+        # 2. Busca o histórico recente (as últimas 6 interações) para dar contexto à Samara
+        historico = buscar_historico(chat_id, limite=6)
 
-    bot.send_chat_action(chat_id, 'typing')
-    
-    # 3. Envia o histórico estruturado para o arquivo ia.py obter a resposta do Llama
-    resposta_ia = gerar_resposta(historico, pergunta)
+        bot.send_chat_action(chat_id, 'typing')
+        
+        # 3. Envia o histórico estruturado para o arquivo ia.py obter a resposta do Llama
+        resposta_ia = gerar_resposta(historico, pergunta)
 
-    # 4. Salva a resposta que a IA gerou no banco de dados também, para ela se lembrar na próxima rodada
-    armazenar_conversa(chat_id, role="assistant", content=resposta_ia)
+        # 4. Salva a resposta que a IA gerou no banco de dados também
+        salvar_mensagem_historico(chat_id, role="assistant", content=resposta_ia)
 
-    markup_voltar = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("« Sair da IA (Menu Principal)", callback_data="btn_voltar")
-    )
-    bot.send_message(chat_id, resposta_ia, reply_markup=markup_voltar, parse_mode="Markdown")
-    
+        markup_voltar = types.InlineKeyboardMarkup().add(
+            types.InlineKeyboardButton("« Sair da IA (Menu Principal)", callback_data="btn_voltar")
+        )
+        bot.send_message(chat_id, resposta_ia, reply_markup=markup_voltar, parse_mode="Markdown")
+        
+    except Exception as e:
+        print(f"Erro crítico no fluxo da IA: {e}")
+        bot.send_message(chat_id, "⚠️ *Desculpe, Doutor(a).* Tive um problema interno ao processar sua mensagem. Por favor, tente enviar novamente.")
+
+    # Mantém o loop ativo para a próxima pergunta continuar na IA
     ajuda_texto = "✍️ *Pode continuar a conversa ou fazer outra pergunta (envie /menu para sair):*"
     proxima_msg = bot.send_message(chat_id, ajuda_texto, parse_mode="Markdown")
     bot.register_next_step_handler(proxima_msg, processar_duvida_ia)
