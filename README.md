@@ -28,8 +28,10 @@ A **Agente Samara** é um bot automatizado para o Telegram integrado a um servid
 
 ```text
 bot_Samara/
+├── banco.py           # Código-fonte para este com banco de dados com nomes e cpfs ficticios
 ├── bot.py             # Código-fonte principal do bot e servidor Flask
 ├── .env               # Variáveis de ambiente confidenciais (Ignorado no Git)
+├── ia.py              # Código-fonte para gerar respostas  
 └── README.md          # Documentação do projeto
 ```
 
