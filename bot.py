@@ -8,7 +8,6 @@ from telebot import types
 from dotenv import load_dotenv
 from flask import Flask
 
-# Importações dos outros arquivos locais
 from ia import gerar_resposta
 from banco import inicializar_banco, consultar_cadastro, salvar_mensagem_historico, armazenar_conversa, buscar_historico, limpar_historico
 
@@ -225,11 +224,6 @@ def responder_cliques(call):
         bot.register_next_step_handler(msg_enviada, processar_duvida_ia)
 
     elif call.data == "btn_voltar":
-        dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
-        texto_voltar = f"👋 *Olá, {dados['tratamento']} {dados['nome']}!*\n\nComo posso te ajudar hoje? Selecione uma opção abaixo:"
-        editar_mensagem_segura(texto_voltar, chat_id, message_id, reply_markup=menu_principal())     
-
-    elif call.data == "btn_voltar":
         limpar_historico(chat_id) # Limpa os dados de histórico para economizar espaço se ele saiu do menu
         dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
         texto_voltar = f"👋 *Olá, {dados['tratamento']} {dados['nome']}!*\n\nComo posso te ajudar hoje? Selecione uma opção abaixo:"
@@ -246,7 +240,7 @@ if __name__ == "__main__":
     print("Forçando encerramento de conexões antigas...")
     try:
         bot.remove_webhook()
-        bot.close()
+        
     except Exception:
         pass
         
@@ -259,5 +253,5 @@ if __name__ == "__main__":
     bot.delete_webhook(drop_pending_updates=True)
     print("Bot da Samara online e escutando mensagens com IA!")
     
-    # O infinity_polling nativo já cuida de erros e reconexões automaticamente
+    # O infinity_polling corrige erros e reconexões automaticamente
     bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=20)
