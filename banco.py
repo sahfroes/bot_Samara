@@ -16,7 +16,7 @@ def inicializar_banco():
             )
         """)
         
-        # NOVA: Tabela para armazenar a memória da IA
+        # Tabela para armazenar a memória da IA
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS historico_conversas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

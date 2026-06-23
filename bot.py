@@ -72,7 +72,7 @@ def menu_farmaceutico():
     return markup
 
 # ==========================================================
-# 3. Handlers de Comandos de Texto e Conexão IA
+# 3. Comandos de Texto e Conexão IA
 # ==========================================================
 
 def processar_duvida_ia(mensagem):
@@ -82,7 +82,6 @@ def processar_duvida_ia(mensagem):
     if not pergunta:
         return
 
-    # Se decidir sair da IA por texto ou comando, limpa o histórico do banco de dados
     if pergunta.strip() in ['/start', '/ajuda', '/comecar', '/iniciar', '/menu', 'sair', 'Sair']:
         limpar_historico(chat_id)
         bot.clear_step_handler_by_chat_id(chat_id=chat_id)
@@ -90,18 +89,18 @@ def processar_duvida_ia(mensagem):
         return
 
     try:
-        # 1. Salva a pergunta usando a função correta para mensagens individuais
+        # 1. Salva a pergunta
         salvar_mensagem_historico(chat_id, role="user", content=pergunta)
 
-        # 2. Busca o histórico recente (as últimas 6 interações) para dar contexto à Samara
-        historico = buscar_historico(chat_id, limite=6)
+        # 2. Busca o histórico recente 
+        historico = buscar_historico(chat_id, limite=10)
 
         bot.send_chat_action(chat_id, 'typing')
         
-        # 3. Envia o histórico estruturado para o arquivo ia.py obter a resposta do Llama
+        # 3. Envia o histórico 
         resposta_ia = gerar_resposta(historico, pergunta)
 
-        # 4. Salva a resposta que a IA gerou no banco de dados também
+        # 4. Salva a resposta 
         salvar_mensagem_historico(chat_id, role="assistant", content=resposta_ia)
 
         markup_voltar = types.InlineKeyboardMarkup().add(
@@ -113,7 +112,7 @@ def processar_duvida_ia(mensagem):
         print(f"Erro crítico no fluxo da IA: {e}")
         bot.send_message(chat_id, "⚠️ *Desculpe, Doutor(a).* Tive um problema interno ao processar sua mensagem. Por favor, tente enviar novamente.")
 
-    # Mantém o loop ativo para a próxima pergunta continuar na IA
+    # Mantém o loop ativo para a próxima pergunta continuar 
     ajuda_texto = "✍️ *Pode continuar a conversa ou fazer outra pergunta (envie /menu para sair):*"
     proxima_msg = bot.send_message(chat_id, ajuda_texto, parse_mode="Markdown")
     bot.register_next_step_handler(proxima_msg, processar_duvida_ia)
@@ -204,7 +203,7 @@ def responder_cliques(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
     
-    # IMPORTANTE: Limpa steps de texto ativos para evitar comportamento fantasma se usar botões inline
+    #  Limpa steps de texto ativos para evitar comportamento fantasma se usar botões inline
     bot.clear_step_handler_by_chat_id(chat_id=chat_id)
     
     if call.data == "btn_site":
