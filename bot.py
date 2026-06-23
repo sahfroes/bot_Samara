@@ -4,7 +4,8 @@ import time
 import re
 from threading import Thread
 import telebot
-from telebot import types
+# ADICIONADO: apihelper para tratar o erro 409
+from telebot import types, apihelper 
 from dotenv import load_dotenv
 from flask import Flask
 
@@ -75,7 +76,7 @@ def menu_farmaceutico():
 # ==========================================================
 
 def processar_duvida_ia(mensagem):
-    chat_id = message_id = mensagem.chat.id
+    chat_id = mensagem.chat.id
     pergunta = mensagem.text
 
     if not pergunta:
@@ -133,7 +134,7 @@ Para iniciar o seu atendimento personalizado, por favor, **digite o seu CPF** (a
 
 def processar_cpf(mensagem):
     chat_id = mensagem.chat.id
-    texto_usuario = mensagem.text or ""
+    texto_usuario = message = mensagem.text or ""
 
     if texto_usuario.startswith('/'):
         bot.clear_step_handler_by_chat_id(chat_id=chat_id)
@@ -181,7 +182,7 @@ def enviar_boas_vindas_comando(mensagem):
 @bot.message_handler(func=lambda msg: True)
 def enviar_boas_vindas_texto(mensagem):
     chat_id = mensagem.chat.id
-    if bot.get_state(chat_id) is not None or chat_id in bot.next_step_handlers:
+    if chat_id in bot.next_step_handlers:
         return
         
     iniciar_autenticacao(mensagem)
@@ -202,7 +203,6 @@ def responder_cliques(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
     
-    #  Limpa steps de texto ativos para evitar comportamento fantasma se usar botões inline
     bot.clear_step_handler_by_chat_id(chat_id=chat_id)
     
     if call.data == "btn_site":
@@ -218,13 +218,13 @@ def responder_cliques(call):
         editar_mensagem_segura(texto_ajuda, chat_id, message_id, reply_markup=menu_farmaceutico())
 
     elif call.data == "btn_ia":
-        limpar_historico(chat_id) # Garante que a conversa começará do zero, sem lixo antigo
+        limpar_historico(chat_id) 
         texto_ia = """💬 *Modo Inteligente Ativado!*\n\nEu sou a Samara. Agora eu consigo me lembrar do contexto da nossa conversa! Pode falar comigo naturalmente.\n\n👉 *Digite sua dúvida abaixo:*"""
         msg_enviada = bot.edit_message_text(texto_ia, chat_id, message_id, parse_mode="Markdown")
         bot.register_next_step_handler(msg_enviada, processar_duvida_ia)
 
     elif call.data == "btn_voltar":
-        limpar_historico(chat_id) # Limpa os dados de histórico para economizar espaço se ele saiu do menu
+        limpar_historico(chat_id) 
         dados = usuarios_logados.get(chat_id, {"nome": "Colega", "tratamento": "Doutor(a)"})
         texto_voltar = f"👋 *Olá, {dados['tratamento']} {dados['nome']}!*\n\nComo posso te ajudar hoje? Selecione uma opção abaixo:"
         editar_mensagem_segura(texto_voltar, chat_id, message_id, reply_markup=menu_principal())
@@ -240,7 +240,6 @@ if __name__ == "__main__":
     print("Forçando encerramento de conexões antigas...")
     try:
         bot.remove_webhook()
-        
     except Exception:
         pass
         
@@ -250,8 +249,23 @@ if __name__ == "__main__":
         types.BotCommand("ajuda", "Central do Farmacêutico")
     ])
     
-    bot.delete_webhook(drop_pending_updates=True)
+    try:
+        bot.delete_webhook(drop_pending_updates=True)
+    except Exception:
+        pass
+
     print("Bot da Samara online e escutando mensagens com IA!")
     
-    # O infinity_polling corrige erros e reconexões automaticamente
-    bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=20)
+    # MODIFICADO: Loop de polling persistente com tratamento para o erro 409
+    while True:
+        try:
+            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=20)
+        except apihelper.ApiTelegramException as e:
+            if e.error_code == 409:
+                print("Aviso 409 (Conflito de Instâncias). Aguardando 10 segundos para liberação do Render...")
+                time.sleep(10)
+            else:
+                raise e
+        except Exception as e:
+            print(f"Erro inesperado no polling: {e}")
+            time.sleep(5)
